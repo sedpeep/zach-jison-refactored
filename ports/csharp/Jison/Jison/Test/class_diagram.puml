@@ -1,0 +1,140 @@
+@startuml
+skinparam linetype ortho
+left to right direction
+
+' Core Interfaces
+interface ISymbolTable {
+    + Add(symbol: ParserSymbol): void
+    + Get(name: string): ParserSymbol
+    + Get(index: int): ParserSymbol
+    + Contains(name: string): bool
+    + Contains(index: int): bool
+    + GetAllSymbols(): IEnumerable<ParserSymbol>
+}
+
+interface IParserState {
+    + Handle(context: ParserContext): void
+}
+
+' Enums
+enum ParserActionType {
+    None
+    Shift
+    Reduce
+    Accept
+}
+
+' Base Classes
+class ParserContext {
+    + Expression ThisS
+    + Expression Yy
+    + int Yystate
+    + JList<Expression> Ss
+    + ParserSymbol Symbol
+    + ParserAction Action
+}
+
+class ParserException {
+    + ParserError Error
+    + ParserException(message: string, error: ParserError)
+}
+
+class NullParserValue {
+    + static Instance: NullParserValue
+    - NullParserValue()
+}
+
+class StateTransition {
+    + int CurrentState
+    + int NextState
+    + ParserAction Action
+    + StateTransition(currentState: int, nextState: int, action: ParserAction)
+}
+
+' State Handlers
+class ShiftState {
+    + Handle(context: ParserContext): void
+}
+
+class ReduceState {
+    - Formula _formula
+    - int _production
+    + Handle(context: ParserContext): void
+}
+
+class AcceptState {
+    + Handle(context: ParserContext): void
+}
+
+' Manager Classes
+class ParserStateManager {
+    - Dictionary<int, IParserState> _states
+    - Formula _formula
+    + HandleState(context: ParserContext): void
+}
+
+class SymbolTable {
+    - Dictionary<string, ParserSymbol> _symbolsByName
+    - Dictionary<int, ParserSymbol> _symbolsByIndex
+    + Add(symbol: ParserSymbol): void
+    + Get(name: string): ParserSymbol
+    + Get(index: int): ParserSymbol
+    + Contains(name: string): bool
+    + Contains(index: int): bool
+    + GetAllSymbols(): IEnumerable<ParserSymbol>
+}
+
+' Main Class
+class FormulaRefactored {
+    - SymbolTable _symbolTable
+    - ParserStateManager _stateManager
+    - Dictionary<int, Dictionary<int, StateTransition>> _transitions
+    + JList<ParserSymbol> Symbols
+    + Dictionary<int, ParserSymbol> Terminals
+    + JList<ParserProduction> Productions
+    + JList<JList<ParserAction>> Table
+    + Parse(input: string): Expression
+    - InitializeSymbols(): void
+    - InitializeTransitions(): void
+    - GetNextAction(context: ParserContext): ParserAction
+    - GetNextSymbol(): ParserSymbol
+    + ParserPerformAction(context: ParserContext): void
+}
+
+' Relationships
+ISymbolTable <|.. SymbolTable
+IParserState <|.. ShiftState
+IParserState <|.. ReduceState
+IParserState <|.. AcceptState
+
+FormulaRefactored "1" *-- "1" SymbolTable : manages
+FormulaRefactored "1" *-- "1" ParserStateManager : coordinates
+ParserStateManager "1" *-- "1..*" IParserState : handles
+
+ParserContext "1" --> "1" Expression : contains
+ParserContext "1" --> "1" ParserSymbol : references
+ParserContext "1" --> "1" ParserAction : uses
+
+StateTransition "1" --> "1" ParserAction : contains
+
+ReduceState "1" --> "1" FormulaRefactored : uses
+
+ParserException "1" --> "1" ParserError : contains
+
+' Notes
+note right of FormulaRefactored
+  Coordinates parsing process
+  and manages overall state
+end note
+
+note right of SymbolTable
+  Encapsulates symbol
+  management
+end note
+
+note right of ParserStateManager
+  Manages state transitions
+  and actions
+end note
+
+@enduml 
