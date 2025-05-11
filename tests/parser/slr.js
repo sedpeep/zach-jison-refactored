@@ -1,52 +1,56 @@
-var Jison = require("../setup").Jison,
-    Lexer = require("../setup").Lexer,
-    assert = require("assert");
+const { Jison, Lexer } = require("../setup");
+const assert = require("assert");
 
-var lexData = {
-    rules: [
-       ["x", "return 'x';"],
-       ["y", "return 'y';"]
-    ]
-};
-
-exports["test left-recursive nullable grammar"] = function () {
-
-    var grammar = {
-        tokens: [ 'x' ],
-        startSymbol: "A",
-        bnf: {
-            "A" :[ 'A x',
-                   ''      ]
-        }
+describe("SLR Parser Tests", () => {
+    const lexData = {
+        rules: [
+            ["x", "return 'x';"],
+            ["y", "return 'y';"]
+        ]
     };
 
-    var gen = new Jison.Generator(grammar, {type: "slr"});
-    var parser = gen.createParser();
-    parser.lexer = new Lexer(lexData);
+    describe("Nullable Grammar Tests", () => {
+        it("should handle left-recursive nullable grammar correctly", () => {
+            const grammar = {
+                tokens: ['x'],
+                startSymbol: "A",
+                bnf: {
+                    "A": ['A x',
+                          '']
+                }
+            };
 
-    assert.ok(parser.parse('xxx'), "parse 3 x's");
-    assert.ok(parser.parse("x"), "parse single x");
-    assert.throws(function(){parser.parse("y")}, "throws parse error on invalid token");
-    assert.ok(gen.conflicts == 0, "no conflicts");
-};
+            const gen = new Jison.Generator(grammar, {type: "slr"});
+            const parser = gen.createParser();
+            parser.lexer = new Lexer(lexData);
 
-exports["test right-recursive nullable grammar"] = function () {
+            assert.ok(parser.parse('xxx'), "Should parse three x's");
+            assert.ok(parser.parse("x"), "Should parse single x");
+            assert.throws(
+                () => parser.parse("y"),
+                "Should throw parse error on invalid token"
+            );
+            assert.equal(gen.conflicts, 0, "Grammar should be conflict-free");
+        });
 
-    var grammar = {
-        tokens: [ 'x' ],
-        startSymbol: "A",
-        bnf: {
-            "A" :[ 'x A',
-                   ''      ]
-        }
-    };
+        it("should handle right-recursive nullable grammar correctly", () => {
+            const grammar = {
+                tokens: ['x'],
+                startSymbol: "A",
+                bnf: {
+                    "A": ['x A',
+                          '']
+                }
+            };
 
-    var gen = new Jison.Generator(grammar, {type: "slr"});
-    var parser = gen.createParser();
-    parser.lexer = new Lexer(lexData);
+            const gen = new Jison.Generator(grammar, {type: "slr"});
+            const parser = gen.createParser();
+            parser.lexer = new Lexer(lexData);
 
-    assert.ok(parser.parse('xxx'), "parse 3 x's");
-    assert.ok(gen.table.length == 4, "table has 4 states");
-    assert.ok(gen.conflicts == 0, "no conflicts");
-    assert.equal(gen.nullable('A'), true, "A is nullable");
-};
+            assert.ok(parser.parse('xxx'), "Should parse three x's");
+            assert.equal(gen.table.length, 4, "Parser table should have 4 states");
+            assert.equal(gen.conflicts, 0, "Grammar should be conflict-free");
+            assert.equal(gen.nullable('A'), true, "Nonterminal A should be nullable");
+        });
+    });
+});

@@ -1,205 +1,218 @@
-var Jison = require("../setup").Jison,
-    Lexer = require("../setup").Lexer,
-    assert = require("assert");
+const { Jison, Lexer } = require("../setup");
+const assert = require("assert");
 
-exports["test error caught"] = function () {
-    var lexData = {
-        rules: [
-           ["x", "return 'x';"],
-           ["y", "return 'y';"],
-           [".", "return 'ERR';"]
-        ]
-    };
-    var grammar = {
-        bnf: {
-            "A" :['A x',
-                  'A y',
-                  [ 'A error', "return 'caught';" ],
-                   ''      ]
-        }
-    };
+describe("Error Handling Tests", () => {
+    describe("Basic Error Tests", () => {
+        it("should catch and handle errors", () => {
+            const lexData = {
+                rules: [
+                    ["x", "return 'x';"],
+                    ["y", "return 'y';"],
+                    [".", "return 'ERR';"]
+                ]
+            };
+            const grammar = {
+                bnf: {
+                    "A": ['A x',
+                          'A y',
+                          ['A error', "return 'caught';"],
+                          '']
+                }
+            };
 
-    var parser = new Jison.Parser(grammar, {type: "lr0"});
-    parser.lexer = new Lexer(lexData);
-    assert.ok(parser.parse('xxy'), "should parse");
-    assert.equal(parser.parse('xyg'), "caught", "should return 'caught'");
-};
+            const parser = new Jison.Parser(grammar, {type: "lr0"});
+            parser.lexer = new Lexer(lexData);
+            assert.ok(parser.parse('xxy'), "Should parse valid input");
+            assert.equal(parser.parse('xyg'), "caught", "Should return 'caught' on error");
+        });
 
-exports["test error recovery"] = function () {
-    var lexData = {
-        rules: [
-           ["x", "return 'x';"],
-           ["y", "return 'y';"],
-           [".", "return 'ERR';"]
-        ]
-    };
-    var grammar = {
-        bnf: {
-            "A" :['A x',
-                  ['A y', "return 'recovery'"],
-                  'A error',
-                   ''      ]
-        }
-    };
+        it("should recover from errors", () => {
+            const lexData = {
+                rules: [
+                    ["x", "return 'x';"],
+                    ["y", "return 'y';"],
+                    [".", "return 'ERR';"]
+                ]
+            };
+            const grammar = {
+                bnf: {
+                    "A": ['A x',
+                          ['A y', "return 'recovery'"],
+                          'A error',
+                          '']
+                }
+            };
 
-    var parser = new Jison.Parser(grammar, {type: "lr0"});
-    parser.lexer = new Lexer(lexData);
-    assert.equal(parser.parse('xxgy'), "recovery", "should return foo");
-};
+            const parser = new Jison.Parser(grammar, {type: "lr0"});
+            parser.lexer = new Lexer(lexData);
+            assert.equal(parser.parse('xxgy'), "recovery", "Should recover from error");
+        });
+    });
 
-exports["test deep error recovery"] = function () {
-    var lexData = {
-        rules: [
-           ["x", "return 'x';"],
-           ["y", "return 'y';"],
-           ["g", "return 'g';"],
-           [";", "return ';';"],
-           [".", "return 'ERR';"]
-        ]
-    };
-    var grammar = {
-        bnf: {
-            "S" :['g A ;',
-                  ['g error ;', 'return "nested"']
-                      ],
-            "A" :['A x',
-                  'x' ]
-        }
-    };
+    describe("Nested Error Tests", () => {
+        it("should handle deep error recovery", () => {
+            const lexData = {
+                rules: [
+                    ["x", "return 'x';"],
+                    ["y", "return 'y';"],
+                    ["g", "return 'g';"],
+                    [";", "return ';';"],
+                    [".", "return 'ERR';"]
+                ]
+            };
+            const grammar = {
+                bnf: {
+                    "S": ['g A ;',
+                          ['g error ;', 'return "nested"']],
+                    "A": ['A x',
+                          'x']
+                }
+            };
 
-    var parser = new Jison.Parser(grammar, {type: "lr0"});
-    parser.lexer = new Lexer(lexData);
-    assert.ok(parser.parse('gxxx;'), "should parse");
-    assert.equal(parser.parse('gxxg;'), "nested", "should return nested");
-};
+            const parser = new Jison.Parser(grammar, {type: "lr0"});
+            parser.lexer = new Lexer(lexData);
+            assert.ok(parser.parse('gxxx;'), "Should parse valid input");
+            assert.equal(parser.parse('gxxg;'), "nested", "Should handle nested error");
+        });
 
-exports["test no recovery"] = function () {
-    var lexData = {
-        rules: [
-           ["x", "return 'x';"],
-           ["y", "return 'y';"],
-           [".", "return 'ERR';"]
-        ]
-    };
-    var grammar = {
-        bnf: {
-            "A" :['A x',
-                  ['A y', "return 'recovery'"],
-                   ''      ]
-        }
-    };
+        it("should throw when no recovery is possible", () => {
+            const lexData = {
+                rules: [
+                    ["x", "return 'x';"],
+                    ["y", "return 'y';"],
+                    [".", "return 'ERR';"]
+                ]
+            };
+            const grammar = {
+                bnf: {
+                    "A": ['A x',
+                          ['A y', "return 'recovery'"],
+                          '']
+                }
+            };
 
-    var parser = new Jison.Parser(grammar, {type: "lr0"});
-    parser.lexer = new Lexer(lexData);
-    assert.throws(function (){parser.parse('xxgy')}, "should throw");
-};
+            const parser = new Jison.Parser(grammar, {type: "lr0"});
+            parser.lexer = new Lexer(lexData);
+            assert.throws(
+                () => parser.parse('xxgy'),
+                "Should throw when no recovery is possible"
+            );
+        });
+    });
 
-exports["test error after error recovery"] = function () {
-    var lexData = {
-        rules: [
-           ["x", "return 'x';"],
-           ["y", "return 'y';"],
-           ["g", "return 'g';"],
-           [".", "return 'ERR';"]
-        ]
-    };
-    var grammar = {
-        bnf: {
-            "S" :['g A y',
-                  ['g error y', 'return "nested"']
-                      ],
-            "A" :['A x',
-                  'x' ]
-        }
-    };
+    describe("Complex Error Recovery Tests", () => {
+        it("should handle error after error recovery", () => {
+            const lexData = {
+                rules: [
+                    ["x", "return 'x';"],
+                    ["y", "return 'y';"],
+                    ["g", "return 'g';"],
+                    [".", "return 'ERR';"]
+                ]
+            };
+            const grammar = {
+                bnf: {
+                    "S": ['g A y',
+                          ['g error y', 'return "nested"']],
+                    "A": ['A x',
+                          'x']
+                }
+            };
 
-    var parser = new Jison.Parser(grammar, {type: "lr0"});
-    parser.lexer = new Lexer(lexData);
-    assert.throws(function (){parser.parse('gxxx;')}, "should return bar");
-};
+            const parser = new Jison.Parser(grammar, {type: "lr0"});
+            parser.lexer = new Lexer(lexData);
+            assert.throws(
+                () => parser.parse('gxxx;'),
+                "Should throw on error after recovery"
+            );
+        });
 
-exports["test throws error despite recovery rule"] = function() {
-    var lexData2 = {
-        rules: [
-           ["0", "return 'ZERO';"],
-           ["\\+", "return 'PLUS';"],
-           [";", "return ';';"],
-           [".", "return 'INVALID'"],
-           ["$", "return 'EOF';"]
-        ]
-    };
-    var grammar = {
-        bnf: {
-            "S" :[ [ "Exp EOF",    "return $1" ]],
-            "Exp" :[ [ "E ;",    "$$ = $1;" ],
-                     [ "E error", "$$ = $1;" ]],
-            "E" :[ [ "E PLUS T", "$$ = ['+',$1,$3]"  ],
-                   [ "T",        "$$ = $1" ]  ],
-            "T" :[ [ "ZERO",     "$$ = [0]" ] ]
-        }
-    };
+        it("should throw error despite recovery rule", () => {
+            const lexData = {
+                rules: [
+                    ["0", "return 'ZERO';"],
+                    ["\\+", "return 'PLUS';"],
+                    [";", "return ';';"],
+                    [".", "return 'INVALID'"],
+                    ["$", "return 'EOF';"]
+                ]
+            };
+            const grammar = {
+                bnf: {
+                    "S": [["Exp EOF", "return $1"]],
+                    "Exp": [["E ;", "$$ = $1;"],
+                           ["E error", "$$ = $1;"]],
+                    "E": [["E PLUS T", "$$ = ['+',$1,$3]"],
+                          ["T", "$$ = $1"]],
+                    "T": [["ZERO", "$$ = [0]"]]
+                }
+            };
 
-    var parser = new Jison.Parser(grammar, {debug: true});
-    parser.lexer = new Lexer(lexData2);
+            const parser = new Jison.Parser(grammar, {debug: true});
+            parser.lexer = new Lexer(lexData);
 
-    var expectedAST = ["+", ["+", [0], [0]], [0]];
+            const expectedAST = ["+", ["+", [0], [0]], [0]];
+            assert.throws(
+                () => parser.parse("0+0+0>"),
+                "Should throw despite recovery rule"
+            );
+        });
+    });
 
-    assert.throws(function (){(parser.parse("0+0+0>"), expectedAST);});
-};
+    describe("AST Recovery Tests", () => {
+        it("should maintain correct AST after error recovery", () => {
+            const lexData = {
+                rules: [
+                    ["0", "return 'ZERO';"],
+                    ["\\+", "return 'PLUS';"],
+                    [";", "return ';';"],
+                    ["$", "return 'EOF';"],
+                    [".", "return 'INVALID';"]
+                ]
+            };
+            const grammar = {
+                bnf: {
+                    "S": [["Exp EOF", "return $1"]],
+                    "Exp": [["E ;", "$$ = $1;"],
+                           ["E error", "$$ = $1;"]],
+                    "E": [["E PLUS T", "$$ = ['+',$1,$3]"],
+                          ["T", "$$ = $1"]],
+                    "T": [["ZERO", "$$ = [0]"]]
+                }
+            };
 
-exports["test correct AST after error recovery abrupt end"] = function() {
-    var lexData2 = {
-        rules: [
-           ["0", "return 'ZERO';"],
-           ["\\+", "return 'PLUS';"],
-           [";", "return ';';"],
-           ["$", "return 'EOF';"],
-           [".", "return 'INVALID';"]
-        ]
-    };
-    var grammar = {
-        bnf: {
-            "S" :[ [ "Exp EOF",    "return $1" ]],
-            "Exp" :[ [ "E ;",    "$$ = $1;" ],
-                     [ "E error", "$$ = $1;" ]],
-            "E" :[ [ "E PLUS T", "$$ = ['+',$1,$3]"  ],
-                   [ "T",        "$$ = $1" ]  ],
-            "T" :[ [ "ZERO",     "$$ = [0]" ] ]
-        }
-    };
+            const parser = new Jison.Parser(grammar);
+            parser.lexer = new Lexer(lexData);
 
-    var parser = new Jison.Parser(grammar);
-    parser.lexer = new Lexer(lexData2);
+            const expectedAST = ["+", ["+", [0], [0]], [0]];
+            assert.deepEqual(parser.parse("0+0+0"), expectedAST, "Should maintain correct AST");
+        });
 
-    var expectedAST = ["+", ["+", [0], [0]], [0]];
+        it("should handle bison-style error recovery", () => {
+            const lexData = {
+                rules: [
+                    ["0", "return 'ZERO';"],
+                    ["\\+", "return 'PLUS';"],
+                    [";", "return ';';"],
+                    ["$", "return 'EOF';"],
+                    [".", "return 'INVALID';"]
+                ]
+            };
+            const grammar = {
+                bnf: {
+                    "S": [["stmt stmt EOF", "return $1"]],
+                    "stmt": [["E ;", "$$ = $1;"],
+                            ["error ;", "$$ = $1;"]],
+                    "E": [["E PLUS T", "$$ = ['+',$1,$3]"],
+                          ["T", "$$ = $1"]],
+                    "T": [["ZERO", "$$ = [0]"]]
+                }
+            };
 
-    assert.deepEqual(parser.parse("0+0+0"), expectedAST);
-};
+            const parser = new Jison.Parser(grammar);
+            parser.lexer = new Lexer(lexData);
 
-
-exports["test bison error recovery example"] = function() {
-    var lexData2 = {
-        rules: [
-           ["0", "return 'ZERO';"],
-           ["\\+", "return 'PLUS';"],
-           [";", "return ';';"],
-           ["$", "return 'EOF';"],
-           [".", "return 'INVALID';"]
-        ]
-    };
-    var grammar = {
-        bnf: {
-            "S" :[ [ "stmt stmt EOF",    "return $1" ]],
-            "stmt" :[ [ "E ;",    "$$ = $1;" ],
-                     [ "error ;", "$$ = $1;" ]],
-            "E" :[ [ "E PLUS T", "$$ = ['+',$1,$3]"  ],
-                   [ "T",        "$$ = $1" ]  ],
-            "T" :[ [ "ZERO",     "$$ = [0]" ] ]
-        }
-    };
-
-    var parser = new Jison.Parser(grammar);
-    parser.lexer = new Lexer(lexData2);
-
-    assert.ok(parser.parse("0+0++++>;0;"), "should recover");
-};
+            assert.ok(parser.parse("0+0++++>;0;"), "Should recover from multiple errors");
+        });
+    });
+});

@@ -1,4 +1,7 @@
-exports.testParser = require("./parser/parser-tests");
+// Import all test files
+require("./parser/parser-tests");
 
-if (require.main === module)
-    require("test").run(exports);
+// If running directly, use Mocha
+if (require.main === module) {
+    require("mocha/bin/mocha");
+}
