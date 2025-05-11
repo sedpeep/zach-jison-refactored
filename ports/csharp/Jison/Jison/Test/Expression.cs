@@ -3,129 +3,87 @@ using System.Collections.Generic;
 
 namespace jQuerySheet
 {
-	public class Expression : ParserValue
-	{	
-		public bool ValueSet = false;
-		public string Type;
-		
-		public Expression(){}
-		public Expression(Expression value)
+	public class Expression
+	{
+		public string Type { get; set; }
+		public object Value { get; set; }
+		public List<Expression> Arguments { get; set; }
+		public string Name { get; set; }
+		public Expression Left { get; set; }
+		public Expression Right { get; set; }
+		public string Operator { get; set; }
+
+		public Expression()
 		{
-			Text = value.Text;
-			Leng = value.Leng;
-			Loc = value.Loc;
-			LineNo = value.LineNo;
-			ValueSet = value.ValueSet;
-			BoolValue = value.BoolValue;
-			Children = value.Children;
-			DoubleValue = value.DoubleValue;
+			Arguments = new List<Expression>();
 		}
-		
-		public Expression Clone()
+
+		public Expression(string type, object value)
 		{
-			return new Expression(this);
+			Type = type;
+			Value = value;
+			Arguments = new List<Expression>();
 		}
-		
-		public Expression(string value)
+
+		public Expression(string type, string name, List<Expression> args)
 		{
-			Text = value;
+			Type = type;
+			Name = name;
+			Arguments = args ?? new List<Expression>();
 		}
-		
-		public bool BoolValue;
-		public bool ToBool()
+
+		public Expression(string type, Expression left, string op, Expression right)
 		{
-			ValueSet = true;
-			BoolValue = Convert.ToBoolean (Text);
-			Type = "bool";
-			return BoolValue;
+			Type = type;
+			Left = left;
+			Operator = op;
+			Right = right;
+			Arguments = new List<Expression>();
 		}
-		public void Set(bool value) {
-			BoolValue = value;
-			ValueSet = true;
-			Type = "bool";
-		}
-		
-		
-		public double DoubleValue;
-		public double ToDouble()
+
+		public object Evaluate()
 		{
-			ValueSet = true;
-			if (!String.IsNullOrEmpty (Text) || DoubleValue != 0) {
-				double num;
-				if (double.TryParse(Text, out num)) {
-					DoubleValue = num;
-				} else {
-					DoubleValue = (DoubleValue != 0 ? DoubleValue : 0);
-				}
-				ValueSet = true;
-			} else {
-				DoubleValue = 0;
-			}
-			Type = "double";
-			return DoubleValue;
-		}
-		public bool IsNumeric()
-		{
-			if (Type == "double" || DoubleValue > 0)
+			switch (Type)
 			{
-			    Type = "double";
-				return true;
+				case "number":
+					return Convert.ToDouble(Value);
+				case "string":
+					return Value.ToString();
+				case "identifier":
+					return Name;
+				case "call":
+					return EvaluateCall();
+				case "binary":
+					return EvaluateBinary();
+				default:
+					throw new InvalidOperationException($"Unknown expression type: {Type}");
 			}
-			
-			double num;
-			if (double.TryParse(Text, out num))
+		}
+
+		private object EvaluateCall()
+		{
+			// Implementation of function call evaluation
+			return null;
+		}
+
+		private object EvaluateBinary()
+		{
+			var leftValue = Left.Evaluate();
+			var rightValue = Right.Evaluate();
+
+			switch (Operator)
 			{
-				ValueSet = true;
-				Type = "double";
-				return true;
+				case "+":
+					return Convert.ToDouble(leftValue) + Convert.ToDouble(rightValue);
+				case "-":
+					return Convert.ToDouble(leftValue) - Convert.ToDouble(rightValue);
+				case "*":
+					return Convert.ToDouble(leftValue) * Convert.ToDouble(rightValue);
+				case "/":
+					return Convert.ToDouble(leftValue) / Convert.ToDouble(rightValue);
+				default:
+					throw new InvalidOperationException($"Unknown operator: {Operator}");
 			}
-			
-			return false;
-		}
-		public void Add(Expression value)
-		{
-			value.ToDouble();
-			DoubleValue += value.DoubleValue;
-			Type = "double";
-		}
-		public void Set(double value) {
-			DoubleValue = value;
-			ValueSet = true;
-			Type = "double";
-		}
-		
-		
-		public string ToString()
-		{
-			ValueSet = true;
-			Type = "string";
-			return Text;
-		}
-		public void Set(string value) {
-			Text = value;
-			ValueSet = true;
-			Type = "string";
-		}
-		public void Concat(Expression value)
-		{
-			Text += value.Text;
-			Type = "string";
-		}
-		
-		
-		
-		
-		public List<Expression> Children;
-		public void Push(Expression value)
-		{
-			if (Children == null) {
-				Children = new List<Expression>()
-				{
-					this
-				};
-			}
-			
-			Children.Add (value);
 		}
 	}
 }

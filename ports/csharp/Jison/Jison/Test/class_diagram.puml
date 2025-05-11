@@ -2,139 +2,394 @@
 skinparam linetype ortho
 left to right direction
 
-' Core Interfaces
+' Interfaces
+interface IParser {
+    +Parse(input: string): Expression
+    +PerformAction(action: ParserAction): void
+    +PerformLexerAction(action: ParserAction): void
+    +PerformParserAction(action: ParserAction): void
+    +PerformCustomAction(action: ParserAction): void
+    +GetSymbolTable(): ISymbolTable
+    +GetStateManager(): IParserStateManager
+    +GetLexer(): ILexer
+}
+
 interface ISymbolTable {
-    + Add(symbol: ParserSymbol): void
-    + Get(name: string): ParserSymbol
-    + Get(index: int): ParserSymbol
-    + Contains(name: string): bool
-    + Contains(index: int): bool
-    + GetAllSymbols(): IEnumerable<ParserSymbol>
+    +AddSymbol(symbol: ParserSymbol): void
+    +GetSymbol(name: string): ParserSymbol
+    +GetSymbols(): IEnumerable<ParserSymbol>
+    +Clear(): void
 }
 
 interface IParserState {
-    + Handle(context: ParserContext): void
+    +HandleState(context: ParserContext): void
+    +GetName(): string
+}
+
+interface IParserStateManager {
+    +AddState(state: IParserState): void
+    +GetState(index: int): IParserState
+    +HandleState(context: ParserContext): void
+    +Clear(): void
+}
+
+interface ILexer {
+    +SetInput(input: string): void
+    +Lex(): ParserSymbol
+    +Peek(): ParserSymbol
+    +GetLocation(): ParserLocation
+    +GetInput(): string
+    +GetIndex(): int
+    +GetLine(): int
+    +GetColumn(): int
+    +GetLastIndex(): int
+    +GetLastLine(): int
+    +GetLastColumn(): int
+    +GetLastLength(): int
+    +GetLastText(): string
+    +GetLastValue(): object
+    +GetLastType(): string
+    +GetLastLocation(): ParserLocation
+    +GetLastSymbol(): ParserSymbol
+    +GetLastError(): ParserError
+    +GetLastException(): ParserException
+    +GetLastState(): IParserState
+    +GetLastAction(): ParserAction
+    +GetLastValue(): object
+    +GetLastType(): string
+    +GetLastLocation(): ParserLocation
+    +GetLastSymbol(): ParserSymbol
+    +GetLastError(): ParserError
+    +GetLastException(): ParserException
+    +GetLastState(): IParserState
+    +GetLastAction(): ParserAction
 }
 
 ' Enums
 enum ParserActionType {
-    None
-    Shift
-    Reduce
-    Accept
+    SHIFT
+    REDUCE
+    ACCEPT
+    ERROR
 }
 
-' Base Classes
-class ParserContext {
-    + Expression ThisS
-    + Expression Yy
-    + int Yystate
-    + JList<Expression> Ss
-    + ParserSymbol Symbol
-    + ParserAction Action
+' Classes
+class Formula {
+    -_symbolTable: ISymbolTable
+    -_stateManager: IParserStateManager
+    -_lexer: ILexer
+    -_context: ParserContext
+    +Parse(input: string): Expression
+    +PerformAction(action: ParserAction): void
+    +PerformLexerAction(action: ParserAction): void
+    +PerformParserAction(action: ParserAction): void
+    +PerformCustomAction(action: ParserAction): void
+    +GetSymbolTable(): ISymbolTable
+    +GetStateManager(): IParserStateManager
+    +GetLexer(): ILexer
+}
+
+class ParserSymbol {
+    +Name: string
+    +Type: string
+    +Value: object
+    +Location: ParserLocation
+}
+
+class ParserLocation {
+    +Line: int
+    +Column: int
+    +Index: int
+    +Length: int
+    +Text: string
+}
+
+class ParserError {
+    +Message: string
+    +Expected: string
+    +Found: string
+    +Location: ParserLocation
+    +Recoverable: bool
 }
 
 class ParserException {
-    + ParserError Error
-    + ParserException(message: string, error: ParserError)
+    +Message: string
+    +Expected: string
+    +Found: string
+    +Location: ParserLocation
+    +Recoverable: bool
 }
 
-class NullParserValue {
-    + static Instance: NullParserValue
-    - NullParserValue()
+class ParserAction {
+    +Type: ParserActionType
+    +Symbol: ParserSymbol
+    +State: IParserState
+    +Value: object
 }
 
-class StateTransition {
-    + int CurrentState
-    + int NextState
-    + ParserAction Action
-    + StateTransition(currentState: int, nextState: int, action: ParserAction)
+class ParserContext {
+    +SymbolTable: ISymbolTable
+    +StateManager: IParserStateManager
+    +Lexer: ILexer
+    +CurrentState: IParserState
+    +CurrentSymbol: ParserSymbol
+    +CurrentValue: object
+    +CurrentError: ParserError
+    +CurrentException: ParserException
+    +CurrentAction: ParserAction
 }
 
-' State Handlers
-class ShiftState {
-    + Handle(context: ParserContext): void
-}
-
-class ReduceState {
-    - Formula _formula
-    - int _production
-    + Handle(context: ParserContext): void
-}
-
-class AcceptState {
-    + Handle(context: ParserContext): void
-}
-
-' Manager Classes
 class ParserStateManager {
-    - Dictionary<int, IParserState> _states
-    - Formula _formula
-    + HandleState(context: ParserContext): void
+    -_states: Dictionary<int, IParserState>
+    -_parser: IParser
+    +AddState(state: IParserState): void
+    +GetState(index: int): IParserState
+    +HandleState(context: ParserContext): void
+    +Clear(): void
 }
 
 class SymbolTable {
-    - Dictionary<string, ParserSymbol> _symbolsByName
-    - Dictionary<int, ParserSymbol> _symbolsByIndex
-    + Add(symbol: ParserSymbol): void
-    + Get(name: string): ParserSymbol
-    + Get(index: int): ParserSymbol
-    + Contains(name: string): bool
-    + Contains(index: int): bool
-    + GetAllSymbols(): IEnumerable<ParserSymbol>
+    -_symbols: Dictionary<string, ParserSymbol>
+    +AddSymbol(symbol: ParserSymbol): void
+    +GetSymbol(name: string): ParserSymbol
+    +GetSymbols(): IEnumerable<ParserSymbol>
+    +Clear(): void
 }
 
-' Main Class
-class FormulaRefactored {
-    - SymbolTable _symbolTable
-    - ParserStateManager _stateManager
-    - Dictionary<int, Dictionary<int, StateTransition>> _transitions
-    + JList<ParserSymbol> Symbols
-    + Dictionary<int, ParserSymbol> Terminals
-    + JList<ParserProduction> Productions
-    + JList<JList<ParserAction>> Table
-    + Parse(input: string): Expression
-    - InitializeSymbols(): void
-    - InitializeTransitions(): void
-    - GetNextAction(context: ParserContext): ParserAction
-    - GetNextSymbol(): ParserSymbol
-    + ParserPerformAction(context: ParserContext): void
+class FormulaLexer {
+    -_input: string
+    -_index: int
+    -_line: int
+    -_column: int
+    -_lastIndex: int
+    -_lastLine: int
+    -_lastColumn: int
+    -_lastLength: int
+    -_lastText: string
+    -_lastValue: object
+    -_lastType: string
+    -_lastLocation: ParserLocation
+    -_lastSymbol: ParserSymbol
+    -_lastError: ParserError
+    -_lastException: ParserException
+    -_lastState: IParserState
+    -_lastAction: ParserAction
+    +SetInput(input: string): void
+    +Lex(): ParserSymbol
+    +Peek(): ParserSymbol
+    +GetLocation(): ParserLocation
+    +GetInput(): string
+    +GetIndex(): int
+    +GetLine(): int
+    +GetColumn(): int
+    +GetLastIndex(): int
+    +GetLastLine(): int
+    +GetLastColumn(): int
+    +GetLastLength(): int
+    +GetLastText(): string
+    +GetLastValue(): object
+    +GetLastType(): string
+    +GetLastLocation(): ParserLocation
+    +GetLastSymbol(): ParserSymbol
+    +GetLastError(): ParserError
+    +GetLastException(): ParserException
+    +GetLastState(): IParserState
+    +GetLastAction(): ParserAction
+}
+
+class Expression {
+    +Type: string
+    +Value: object
+    +Name: string
+    +Arguments: List<Expression>
+    +Left: Expression
+    +Operator: string
+    +Right: Expression
+}
+
+class JList<T> {
+    -_items: List<T>
+    +Count: int
+    +Item[index: int]: T
+    +Add(item: T): void
+    +Remove(item: T): bool
+    +Clear(): void
+    +Contains(item: T): bool
+    +IndexOf(item: T): int
+    +Insert(index: int, item: T): void
+    +RemoveAt(index: int): void
+    +GetEnumerator(): IEnumerator<T>
+}
+
+' Factory Classes
+class ParserActionFactory {
+    +{static} CreateAction(type: ParserActionType, symbol: ParserSymbol, state: IParserState, value: object): ParserAction
+    +{static} CreateShiftAction(symbol: ParserSymbol, state: IParserState): ParserAction
+    +{static} CreateReduceAction(symbol: ParserSymbol, state: IParserState, value: object): ParserAction
+    +{static} CreateAcceptAction(symbol: ParserSymbol, state: IParserState): ParserAction
+    +{static} CreateErrorAction(symbol: ParserSymbol, state: IParserState, error: ParserError): ParserAction
+}
+
+class ParserStateFactory {
+    +{static} CreateState(name: string, handler: Action<ParserContext>): IParserState
+    +{static} CreateDefaultState(): IParserState
+    +{static} CreateErrorState(): IParserState
+    +{static} CreateAcceptState(): IParserState
+}
+
+class ParserSymbolFactory {
+    +{static} CreateSymbol(name: string, type: string, value: object, location: ParserLocation): ParserSymbol
+    +{static} CreateNumberSymbol(value: double, location: ParserLocation): ParserSymbol
+    +{static} CreateStringSymbol(value: string, location: ParserLocation): ParserSymbol
+    +{static} CreateIdentifierSymbol(name: string, location: ParserLocation): ParserSymbol
+    +{static} CreateOperatorSymbol(name: string, location: ParserLocation): ParserSymbol
+    +{static} CreateErrorSymbol(message: string, location: ParserLocation): ParserSymbol
+}
+
+class ParserContextFactory {
+    +{static} CreateContext(symbolTable: ISymbolTable, stateManager: IParserStateManager, lexer: ILexer): ParserContext
+    +{static} CreateDefaultContext(): ParserContext
+    +{static} CreateContextWithSymbols(symbols: IEnumerable<ParserSymbol>): ParserContext
+    +{static} CreateContextWithStates(states: Dictionary<int, IParserState>): ParserContext
+}
+
+class ParserExceptionFactory {
+    +{static} CreateException(message: string): ParserException
+    +{static} CreateException(message: string, location: ParserLocation): ParserException
+    +{static} CreateException(message: string, expected: string, found: string): ParserException
+    +{static} CreateException(message: string, location: ParserLocation, expected: string, found: string): ParserException
+    +{static} CreateRecoverableException(message: string): ParserException
+    +{static} CreateUnrecoverableException(message: string): ParserException
+}
+
+class ParserValueFactory {
+    +{static} CreateValue(value: object): ParserValue
+    +{static} CreateNumberValue(value: double): ParserValue
+    +{static} CreateStringValue(value: string): ParserValue
+    +{static} CreateBooleanValue(value: bool): ParserValue
+    +{static} CreateNullValue(): ParserValue
+    +{static} CreateUndefinedValue(): ParserValue
+}
+
+class ParserLocationFactory {
+    +{static} CreateLocation(line: int, column: int, index: int, length: int, text: string): ParserLocation
+    +{static} CreateLocation(line: int, column: int): ParserLocation
+    +{static} CreateLocation(index: int, length: int, text: string): ParserLocation
+    +{static} CreateDefaultLocation(): ParserLocation
+}
+
+class ParserStateTransitionFactory {
+    +{static} CreateTransition(action: ParserAction, parameters: Dictionary<string, object>): StateTransition
+    +{static} CreateShiftTransition(symbol: ParserSymbol, state: IParserState): StateTransition
+    +{static} CreateReduceTransition(symbol: ParserSymbol, state: IParserState, value: object): StateTransition
+    +{static} CreateAcceptTransition(symbol: ParserSymbol, state: IParserState): StateTransition
+}
+
+class ParserProductionFactory {
+    -{static} _productions: Dictionary<int, Production>
+    -{static} _nextIndex: int
+    +{static} CreateProduction(symbol: ParserSymbol): Production
+    +{static} CreateProduction(symbol: ParserSymbol, symbols: List<ParserSymbol>): Production
+    +{static} GetProduction(index: int): Production
+    +{static} AddSymbol(symbol: ParserSymbol, production: Production): void
+    +{static} Clear(): void
+}
+
+class ParserStateManagerFactory {
+    +{static} CreateStateManager(parser: IParser): ParserStateManager
+    +{static} CreateStateManager(parser: IParser, states: Dictionary<int, IParserState>): ParserStateManager
+    +{static} CreateDefaultStateManager(parser: IParser): ParserStateManager
+}
+
+class ParserLexerFactory {
+    +{static} CreateLexer(): FormulaLexer
+    +{static} CreateLexer(input: string): FormulaLexer
+    +{static} CreateLexer(template: ILexer): FormulaLexer
+}
+
+class ParserSymbolTableFactory {
+    +{static} CreateSymbolTable(): SymbolTable
+    +{static} CreateSymbolTable(symbols: IEnumerable<ParserSymbol>): SymbolTable
+    +{static} CreateDefaultSymbolTable(): SymbolTable
+    +{static} CreateSymbolTable(template: ISymbolTable): SymbolTable
+}
+
+class ParserFormulaFactory {
+    +{static} CreateFormula(): Formula
+    +{static} CreateFormula(input: string): Formula
+    +{static} CreateFormula(template: Formula): Formula
+    +{static} CreateDefaultFormula(): Formula
+}
+
+class ParserFactory {
+    +{static} CreateParser(): IParser
+    +{static} CreateParser(input: string): IParser
+    +{static} CreateParser(template: IParser): IParser
+    +{static} CreateDefaultParser(): IParser
+    +{static} CreateParserWithSymbols(symbols: IEnumerable<ParserSymbol>): IParser
+    +{static} CreateParserWithStates(states: Dictionary<int, IParserState>): IParser
+}
+
+class ParserErrorFactory {
+    +{static} CreateError(message: string): ParserError
+    +{static} CreateError(message: string, location: ParserLocation): ParserError
+    +{static} CreateError(message: string, expected: string, found: string): ParserError
+    +{static} CreateError(message: string, location: ParserLocation, expected: string, found: string): ParserError
+    +{static} CreateRecoverableError(message: string): ParserError
+    +{static} CreateUnrecoverableError(message: string): ParserError
+}
+
+class ExpressionFactory {
+    +{static} CreateExpression(): Expression
+    +{static} CreateNumberExpression(value: double): Expression
+    +{static} CreateStringExpression(value: string): Expression
+    +{static} CreateIdentifierExpression(name: string): Expression
+    +{static} CreateCallExpression(name: string, arguments: List<Expression>): Expression
+    +{static} CreateBinaryExpression(left: Expression, op: string, right: Expression): Expression
+    +{static} CreateAdditionExpression(left: Expression, right: Expression): Expression
+    +{static} CreateSubtractionExpression(left: Expression, right: Expression): Expression
+    +{static} CreateMultiplicationExpression(left: Expression, right: Expression): Expression
+    +{static} CreateDivisionExpression(left: Expression, right: Expression): Expression
+}
+
+class JListFactory {
+    +{static} CreateList<T>(): JList<T>
+    +{static} CreateList<T>(capacity: int): JList<T>
+    +{static} CreateList<T>(collection: IEnumerable<T>): JList<T>
+    +{static} CreateList<T>(items: T[]): JList<T>
+    +{static} CreateListWithCapacity<T>(capacity: int): JList<T>
+    +{static} CreateListFromRange<T>(collection: IEnumerable<T>, startIndex: int, count: int): JList<T>
 }
 
 ' Relationships
-ISymbolTable <|.. SymbolTable
-IParserState <|.. ShiftState
-IParserState <|.. ReduceState
-IParserState <|.. AcceptState
+Formula ..|> IParser
+SymbolTable ..|> ISymbolTable
+ParserStateManager ..|> IParserStateManager
+FormulaLexer ..|> ILexer
 
-FormulaRefactored "1" *-- "1" SymbolTable : manages
-FormulaRefactored "1" *-- "1" ParserStateManager : coordinates
-ParserStateManager "1" *-- "1..*" IParserState : handles
+Formula *-- ISymbolTable
+Formula *-- IParserStateManager
+Formula *-- ILexer
+Formula *-- ParserContext
 
-ParserContext "1" --> "1" Expression : contains
-ParserContext "1" --> "1" ParserSymbol : references
-ParserContext "1" --> "1" ParserAction : uses
+ParserContext *-- ISymbolTable
+ParserContext *-- IParserStateManager
+ParserContext *-- ILexer
+ParserContext *-- IParserState
+ParserContext *-- ParserSymbol
+ParserContext *-- ParserError
+ParserContext *-- ParserException
+ParserContext *-- ParserAction
 
-StateTransition "1" --> "1" ParserAction : contains
+ParserAction *-- ParserActionType
+ParserAction *-- ParserSymbol
+ParserAction *-- IParserState
 
-ReduceState "1" --> "1" FormulaRefactored : uses
+ParserSymbol *-- ParserLocation
+ParserError *-- ParserLocation
+ParserException *-- ParserLocation
 
-ParserException "1" --> "1" ParserError : contains
-
-' Notes
-note right of FormulaRefactored
-  Coordinates parsing process
-  and manages overall state
-end note
-
-note right of SymbolTable
-  Encapsulates symbol
-  management
-end note
-
-note right of ParserStateManager
-  Manages state transitions
-  and actions
-end note
+Expression *-- Expression
+JList<T> *-- T
 
 @enduml 

@@ -14,6 +14,20 @@ namespace jQuerySheet
 		Accept = 3
 	}
 
+	public interface IParser
+	{
+		Expression Parse(string input);
+		void ParserPerformAction(ParserContext context);
+	}
+
+	public interface ILexer
+	{
+		void SetInput(string input);
+		ParserSymbol Next();
+		void More();
+		void Unput(string ch);
+	}
+
 	public interface ISymbolTable
 	{
 		void Add(ParserSymbol symbol);
@@ -24,6 +38,13 @@ namespace jQuerySheet
 	public interface IParserState
 	{
 		void Handle(ParserContext context);
+	}
+
+	public interface IParserAction
+	{
+		int Type { get; }
+		int NextState { get; }
+		void Execute(ParserContext context);
 	}
 
 	public class ParserContext
@@ -65,10 +86,11 @@ namespace jQuerySheet
 		}
 	}
 
-	public class Formula
+	public class Formula : IParser
 	{
-		private readonly SymbolTable _symbolTable;
+		private readonly ISymbolTable _symbolTable;
 		private readonly ParserStateManager _stateManager;
+		private readonly ILexer _lexer;
 		private readonly Dictionary<int, Dictionary<int, StateTransition>> _transitions;
 		public JList<ParserSymbol> Symbols { get; private set; }
 		public Dictionary<int, ParserSymbol> Terminals { get; private set; }
@@ -79,6 +101,7 @@ namespace jQuerySheet
 		{
 			_symbolTable = new SymbolTable();
 			_stateManager = new ParserStateManager(this);
+			_lexer = new FormulaLexer();
 			_transitions = new Dictionary<int, Dictionary<int, StateTransition>>();
 			Symbols = new JList<ParserSymbol>();
 			Terminals = new Dictionary<int, ParserSymbol>();
@@ -136,22 +159,8 @@ namespace jQuerySheet
 
 			try
 			{
-				while (true)
-				{
-					var action = GetNextAction(context);
-					if (action == null)
-					{
-						throw new ParserException("Unexpected end of input", new ParserError());
-					}
-
-					context.Action = action;
-					_stateManager.HandleState(context);
-
-					if (action.Type == (int)ParserActionType.Accept)
-					{
-						return context.Yy;
-					}
-				}
+				_lexer.SetInput(input);
+				return ParseInternal(context);
 			}
 			catch (ParserException)
 			{
@@ -163,6 +172,26 @@ namespace jQuerySheet
 			}
 		}
 
+		private Expression ParseInternal(ParserContext context)
+		{
+			while (true)
+			{
+				var action = GetNextAction(context);
+				if (action == null)
+				{
+					throw new ParserException("Unexpected end of input", new ParserError());
+				}
+
+				context.Action = action;
+				_stateManager.HandleState(context);
+
+				if (action.Type == (int)ParserActionType.Accept)
+				{
+					return context.Yy;
+				}
+			}
+		}
+
 		private ParserAction GetNextAction(ParserContext context)
 		{
 			if (!_transitions.TryGetValue(context.Yystate, out var stateTransitions))
@@ -170,7 +199,7 @@ namespace jQuerySheet
 				return null;
 			}
 
-			var symbol = GetNextSymbol();
+			var symbol = _lexer.Next();
 			if (symbol == null)
 			{
 				return null;
@@ -181,12 +210,6 @@ namespace jQuerySheet
 				return transition.Action;
 			}
 
-			return null;
-		}
-
-		private ParserSymbol GetNextSymbol()
-		{
-			// Implementation for getting next symbol from input
 			return null;
 		}
 
@@ -634,33 +657,20 @@ break;
 		}
 	}
 
-	public class ParserAction
+	public class ParserAction : IParserAction
 	{
-		public int Action;
-		public ParserState State;
-		public ParserSymbol Symbol;
+		public int Type { get; }
+		public int NextState { get; }
 
-		public ParserAction(int action)
+		public ParserAction(int type, int nextState)
 		{
-			Action = action;
+			Type = type;
+			NextState = nextState;
 		}
 
-		public ParserAction(int action, ref ParserState state)
+		public void Execute(ParserContext context)
 		{
-			Action = action;
-			State = state;
-		}
-
-		public ParserAction(int action, ParserState state)
-		{
-			Action = action;
-			State = state;
-		}
-
-		public ParserAction(int action, ref ParserSymbol symbol)
-		{
-			Action = action;
-			Symbol = symbol;
+			// Implementation of action execution
 		}
 	}
 
@@ -851,23 +861,23 @@ break;
 
 	public class ReduceState : IParserState
 	{
-		private readonly Formula _formula;
+		private readonly IParser _parser;
 		private readonly int _production;
 
-		public ReduceState(Formula formula, int production)
+		public ReduceState(IParser parser, int production)
 		{
-			_formula = formula;
+			_parser = parser;
 			_production = production;
 		}
 
 		public void Handle(ParserContext context)
 		{
-			var len = _formula.Productions[_production].Length;
+			var len = _parser.Productions[_production].Length;
 			context.Yy = new Expression();
 			context.Ss.RemoveRange(context.Ss.Count - len, len);
 			context.ThisS = context.Ss[context.Ss.Count - 1];
-			context.Symbol = _formula.Productions[_production].Symbol;
-			_formula.ParserPerformAction(context);
+			context.Symbol = _parser.Productions[_production].Symbol;
+			_parser.ParserPerformAction(context);
 		}
 	}
 
@@ -883,15 +893,15 @@ break;
 	public class ParserStateManager
 	{
 		private readonly Dictionary<int, IParserState> _states;
-		private readonly Formula _formula;
+		private readonly IParser _parser;
 
-		public ParserStateManager(Formula formula)
+		public ParserStateManager(IParser parser)
 		{
-			_formula = formula;
+			_parser = parser;
 			_states = new Dictionary<int, IParserState>
 			{
 				{ 1, new ShiftState() },
-				{ 2, new ReduceState(formula, 0) },
+				{ 2, new ReduceState(parser, 0) },
 				{ 3, new AcceptState() }
 			};
 		}
@@ -934,6 +944,46 @@ break;
 		public ParserSymbol Get(int index)
 		{
 			return _symbolsByIndex.TryGetValue(index, out var symbol) ? symbol : null;
+		}
+	}
+
+	public class FormulaLexer : ILexer
+	{
+		private string _input;
+		private bool _more;
+		private bool _less;
+		private bool _done;
+		private int _yylineno;
+		private int _yyleng;
+		private string _yytext;
+		private string _matched;
+		private string _match;
+		private Stack<string> _conditionStack;
+
+		public void SetInput(string input)
+		{
+			_input = input;
+			_more = _less = _done = false;
+			_yylineno = _yyleng = 0;
+			_matched = _match = "";
+			_conditionStack = new Stack<string>();
+			_conditionStack.Push("INITIAL");
+		}
+
+		public ParserSymbol Next()
+		{
+			// Implementation of lexical analysis
+			return null;
+		}
+
+		public void More()
+		{
+			_more = true;
+		}
+
+		public void Unput(string ch)
+		{
+			_input = ch + _input;
 		}
 	}
 }
